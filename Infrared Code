@@ -1,0 +1,24 @@
+const int irSensorPin = 3; // Digital pin connected to the IR sensor 
+
+volatile int sensorValue = 0; // Volatile variable for sensor value
+volatile bool interruptFlag = false; // Volatile flag to indicate interrupt
+
+void setup() {
+  Serial.begin(9600); // Initialize serial communication
+  attachInterrupt(digitalPinToInterrupt(irSensorPin), sensorInterrupt, CHANGE); // Attach interrupt to sensor pin
+}
+
+void loop() {
+  // Check if an interrupt has occurred
+  if (interruptFlag) {
+    Serial.print("IR Sensor Value: ");
+    Serial.println(sensorValue); // Print the sensor value to the serial monitor
+    interruptFlag = false; // Reset the interrupt flag
+  }
+  // Add other non-blocking tasks here
+}
+
+void sensorInterrupt() {
+  sensorValue = digitalRead(irSensorPin); // Read the sensor value
+  interruptFlag = true; // Set the interrupt flag
+}
