@@ -1,0 +1,249 @@
+#include <Wire.h>
+#include <Adafruit_MotorShield.h>
+#include "utility/Adafruit_MS_PWMServoDriver.h"
+
+
+
+const int irSensorPinR = A8; // Analog pin for IR sensor
+const int irSensorPinL = A9; // Analog pin for IR sensor
+const float conversionFactor = 5.0 / 1023.0; // Conversion factor for analog readings to voltage
+  
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
+Adafruit_DCMotor *motor1 = AFMS.getMotor(1);
+Adafruit_DCMotor *motor2 = AFMS.getMotor(2);
+
+//ultrasonic initialization
+
+const int aheadTrigPin = 9;       // Trig pin for the ahead ultrasonic sensor
+const int aheadEchoPin = 10;      // Echo pin for the ahead ultrasonic sensor
+const int leftTrigPin = 6;   // Trig pin for the left ultrasonic sensor
+const int leftEchoPin = 7;   // Echo pin for the left ultrasonic sensor
+const int trigPin = 11;
+const int echoPin = 12;
+
+
+float aheadDuration, leftDuration, duration;
+float aheadDistance, leftDistance, topleftdistance;
+/////////////// ultra sonic setup complete
+
+bool lineFollower = 0;
+float rightInfrared;
+float leftInfrared;
+
+
+
+//robot moving functions
+void forward() {
+  motor2->setSpeed(50);     // Set speed for left motor
+  motor2->run(FORWARD);     // Run left motor forward
+  
+  motor1->setSpeed(50);     // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+}
+void timedForward() {
+  motor2->setSpeed(50);     // Set speed for left motor
+  motor2->run(FORWARD);     // Run left motor forward
+  
+  motor1->setSpeed(50);     // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+  delay(2500);
+  motor2->run(RELEASE);
+  motor1->run(RELEASE);
+
+}
+void timedForwardBurst() {
+  motor2->setSpeed(50);     // Set speed for left motor
+  motor2->run(FORWARD);     // Run left motor forward
+  
+  motor1->setSpeed(50);     // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+  delay(200);
+  motor2->run(RELEASE);
+  motor1->run(RELEASE);
+
+}
+
+void turnRight() { 
+  motor2->setSpeed(75);     // Set speed for left motor
+  motor2->run(BACKWARD);    // Run left motor backward
+  
+  motor1->setSpeed(55);     // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+  delay(500);
+  motor2->run(RELEASE);
+  motor1->run(RELEASE);
+}
+
+void turnRight2() { 
+  motor2->setSpeed(55);     // Set speed for left motor
+  motor2->run(BACKWARD);    // Run left motor backward
+  
+  motor1->setSpeed(65);     // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+  delay(250);
+  motor2->run(RELEASE);
+  motor1->run(RELEASE);
+}
+
+void turnLeft() { 
+  motor2->setSpeed(50);     // Set speed for left motor
+  motor2->run(FORWARD);    // Run left motor backward
+  
+  motor1->setSpeed(80);     // Set speed for right motor
+  motor1->run(BACKWARD);     // Run right motor forward
+  delay(800);
+  motor2->run(RELEASE);
+  motor1->run(RELEASE);
+}
+
+void moveForward(int speed) {
+  motor2->setSpeed(speed);  // Set speed for left motor
+  motor2->run(FORWARD);     // Run left motor forward
+  
+  motor1->setSpeed(speed);  // Set speed for right motor
+  motor1->run(FORWARD);     // Run right motor forward
+}
+
+void setup() {
+  AFMS.begin();
+  pinMode(aheadTrigPin, OUTPUT);
+  pinMode(aheadEchoPin, INPUT);
+  pinMode(leftTrigPin, OUTPUT);
+  pinMode(leftEchoPin, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  Serial.begin(9600);
+
+
+}
+
+void loop() {
+  ultrasonics();
+  
+  if (topleftdistance < 30 || leftDistance < 30 || aheadDistance < 35) {
+    avoidObstacle();
+  } else {
+    defaultlinefollowing();
+  }
+}
+
+
+
+
+void defaultlinefollowing(){
+    // Read the analog value from the IR sensor
+  if(lineFollower == 0){
+  int sensorValueR = analogRead(irSensorPinR);
+  int sensorValueL = analogRead(irSensorPinL);
+
+
+  // Convert the analog value to voltage
+  float voltageR = sensorValueR * conversionFactor;
+  float voltageL = sensorValueL * conversionFactor;
+
+
+  // Convert voltage to distancee (you may need to adjust these constants based on your sensor)
+   rightInfrared = 13.0 / (voltageR - 0.2);
+   leftInfrared = 13.0 / (voltageL - 0.2);
+
+
+  
+  if(rightInfrared < 0 && leftInfrared < 0 ){
+    Serial.println("Both sensors see white.");
+    motor1->setSpeed(50);  // set the speed to maximum
+    motor1->run(FORWARD);
+    motor2->setSpeed(50);  // set the speed to maximum
+    motor2->run(FORWARD);
+  }
+  else if (rightInfrared > 0)
+  {
+    Serial.println("Right sensor sees black.");
+    motor1->setSpeed(55);  // set the speed to maximum
+    motor1->run(FORWARD);
+    motor2->setSpeed(47);  // stop left motor
+    motor2->run(BACKWARD);
+  }
+
+  else if (leftInfrared > 0)
+  {
+    Serial.println("Left sensor sees black.");
+    motor1->setSpeed(47);  // stop right motor
+    motor1->run(BACKWARD);
+    motor2->setSpeed(55);  // set the speed to maximum
+    motor2->run(FORWARD);
+  }
+
+  }
+}
+
+
+void avoidObstacle() {
+  // Stop the motors
+  motor1->run(RELEASE);
+  motor2->run(RELEASE);
+  
+  if (aheadDistance < 35) {
+    // Steeper right turn to avoid the obstacle
+    turnRight();
+    timedForward();
+  }
+
+  // Keep turning right until both topleftdistance and leftDistance sensors no longer detect the obstacle
+  if (topleftdistance < 30 || leftDistance < 30) {
+    turnRight2();
+    //ultrasonics(); // Update ultrasonic sensor readings
+    timedForwardBurst();
+  }
+
+  if (leftDistance > 50){
+    turnLeft();
+    timedForwardBurst();
+  }
+  
+  // Resume line following after avoiding the obstacle
+  moveForward(55);
+}
+
+
+
+void ultrasonics() {
+  // Measure aheadDistance for ahead ultrasonic
+  digitalWrite(aheadTrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(aheadTrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(aheadTrigPin, LOW);
+
+  aheadDuration = pulseIn(aheadEchoPin, HIGH);
+  aheadDistance = (aheadDuration * 0.0343) / 2;
+ // Serial.print("Distance for ahead ultrasonic: ");
+ // Serial.print(aheadDistance);
+ // Serial.println(" cm");
+
+    // Measure aheadDistance for topLeft ultrasonic// topLeftDuration // topleftDistance
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  topleftdistance = (duration*.0343)/2;
+  Serial.print("Distance top left: ");
+  Serial.println(topleftdistance);
+
+  // Measure aheadDistance for left ultrasonic
+  digitalWrite(leftTrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(leftTrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(leftTrigPin, LOW);
+
+  leftDuration = pulseIn(leftEchoPin, HIGH);
+  leftDistance = (leftDuration * 0.0343) / 2;
+ // Serial.print("Distance for left ultrasonic: ");
+ // Serial.print(leftDistance);
+ // Serial.println(" cm");
+
+  delay(100);
+}
